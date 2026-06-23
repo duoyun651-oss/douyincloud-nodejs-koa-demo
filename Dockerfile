@@ -6,8 +6,8 @@ COPY package*.json ./
 
 RUN npm install --omit=dev --registry=https://registry.npmmirror.com
 
-COPY SRC ./src
+COPY . .
 
 EXPOSE 8080
 
-CMD ["npm", "start"]
+CMD ["node", "src/server.js"]
