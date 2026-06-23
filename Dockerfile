@@ -1,9 +1,10 @@
-FROM node:18-alpine
+FROM registry.cn-hangzhou.aliyuncs.com/library/node:18-alpine
 
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci --omit=dev
+
+RUN npm config set registry https://registry.npmmirror.com && npm ci --omit=dev
 
 COPY SRC ./src
 
