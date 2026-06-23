@@ -1,85 +1,88 @@
-# douyincloud-nodejs-koa-demo
-本项目是抖音云平台基于 Nodejs [koa](https://koajs.com/) 框架的开发模版，模版通过使用 Redis 和 MongoDB 实现了简单的 hello-world 功能。\
-抖音云平台支持基于 Git 代码和 Docker 镜像部署两种方式。其中，Dockerfile 文件可以参考本项目中的 Dockerfile 文件。
-部署在抖音云平台的服务日志需要重定向到标准输出，并在抖音云平台日志功能中查看。
+# 背锅接力云容器后端
 
-## 目录结构
-~~~
-.
-├── Dockerfile              Dockerfile文件
-├── Readme.md               Readme文件
-├── src                     源码目录
-│ ├── server.ts             应用入口文件
-├── run.sh                  容器运行时启动文件
-├── package.json            npm 包管理文件
-~~~
+这是给抖音云容器服务部署的 Node.js 18 + Koa 2 排行榜 Demo。接口统一使用 `/api` 前缀。
 
-## 请求方法
-前往抖音云托管平台「调试」功能界面，进行请求调试。
+## 本地运行
 
-## API说明
-### `POST /api/set_data_to_redis?key=test`
-调用 redis 组件设置数据，其中 key 通过 query 传递，value 在 HTTP request body中传递
-### 请求参数
-- `value`:`string` 写入redis的数据
-
-
-### 响应结果
-```json
-{
-    "success": true,
-}
+```bash
+npm i
+npm run dev
 ```
 
-### `GET /api/get_data_from_redis?key=test`
-调用 redis 组件获取 value
-### 请求参数
-- `key`:`string` redis key
+可选 Redis：
 
-### 响应结果
-```json
-{
-    "success": true,
-    "data": "",
-}
+```bash
+REDIS_URL=redis://localhost:6379 npm run dev
 ```
 
-### `POST /api/set_data_to_mongodb?name=test`
-调用 mongodb 组件写入数据
-### 请求参数
-- `name`:`string` 写入mongodb的数据
+没有配置 `REDIS_URL` 时，会用内存 Map 临时保存排行榜。容器重启后数据会丢失，正式上线建议配置 Redis。
 
+## 环境变量
 
-### 响应结果
-```json
-{
-    "success": true,
-}
+| 变量 | 说明 |
+| --- | --- |
+| `PORT` | 服务端口，默认 `8080` |
+| `APP_ENV` | `dev`、`test`、`prod`，默认 `dev` |
+| `REDIS_URL` | Redis 连接地址，可选 |
+
+Redis 榜单 Key：`lb:{APP_ENV}:daily`
+
+## 接口
+
+```bash
+curl http://localhost:8080/api/ping
+
+curl -X POST http://localhost:8080/api/score \
+  -H "Content-Type: application/json" \
+  -d '{"userId":"u1","score":123}'
+
+curl "http://localhost:8080/api/leaderboard?limit=5"
+
+curl "http://localhost:8080/api/me/rank?userId=u1"
 ```
 
-### `GET /api/get_data_from_mongodb?name=test`
-调用 mongodb 组件获取数据
-### 请求参数
-- `name`:`string` 
+## 抖音云部署
 
-### 响应结果
-```json
-{
-    "success": true,
-    "data": {},
-}
-```
+1. 抖音云服务选择 `Node` 容器模板。
+2. 上传或关联本目录作为云容器服务代码。
+3. 服务端口填 `8080`，健康检查路径填 `/api/health`。
+4. 部署完成后复制默认 HTTPS 域名。
+5. 在小游戏/小程序后台，把云容器默认域名加入 `request 合法域名`。
+6. 推荐路径授权配置为 `/api/*`。
 
-### 组件使用注意事项
-在抖音云托管平台上启用组件后，抖音云平台会自动将组件的地址，账号，密码以环境变量的方式注入到容器中。\
-以Redis为例，在抖音云托管平台启用Redis组件后，平台会生成 `REDIS_ADDRESS`，`REDIS_USERNAME`，`REDIS_PASSWORD`三个环境变量，在业务代码中可以使用如下代码获取相应值。
+## 小游戏前端调用示例
+
+`tt.request` 示例，注意线上必须使用 HTTPS：
+
 ```js
-	const redisAddr = process.env.REDIS_ADDRESS;
-	const redisUserName = process.env.REDIS_USERNAME;
-	const redisPassword = process.env.REDIS_PASSWORD; 
+const API_BASE = "https://你的云容器默认域名";
+
+tt.request({
+  url: `${API_BASE}/api/score`,
+  method: "POST",
+  header: { "Content-Type": "application/json" },
+  data: { userId: "u1", score: 123 },
+  success(res) {
+    console.log("saved", res.data);
+  },
+  fail(err) {
+    console.error("score failed", err);
+  }
+});
 ```
 
-## License
+`callContainer` 示例：
 
-This project is licensed under the [Apache-2.0 License](LICENSE).
-
+```js
+tt.cloud.callContainer({
+  path: "/api/leaderboard?limit=20",
+  method: "GET",
+  header: { "Content-Type": "application/json" },
+  success(res) {
+    console.log("leaderboard", res.data);
+  },
+  fail(err) {
+    console.error("leaderboard failed", err);
+  }
+});
+```
